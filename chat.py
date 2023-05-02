@@ -9,7 +9,7 @@ from langchain.llms import OpenAI
 from utils import search_wikipedia,scrape_wikipedia
 import os
 
-os.environ["OPENAI_API_KEY"] = "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"
+os.environ["OPENAI_API_KEY"] = ""
 
 class MovieChatAgent():
 
