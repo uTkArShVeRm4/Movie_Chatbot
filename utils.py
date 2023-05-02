@@ -13,7 +13,15 @@ def get_movie_detail(movie_id):
     list_of_reviews=[]
     for review in reviews['results']:
         list_of_reviews.append(review['content'])
-    return {"Overview":overview,"Reviews":list_of_reviews, "img": img_url}
+        
+    recommendations=[]
+    
+    recommendation_response=requests.get('https://api.themoviedb.org/3/movie/{}/recommendations?api_key=277e998c81d1568adc13dac9f303a253&language=en-US'.format(movie_id))
+    recommendation_response=recommendation_response.json()
+    for r in recommendation_response['results'][:5]:
+        recommendations.append({'title':r['title'],'img_url':'https://image.tmdb.org/t/p/w500' + str(r['poster_path'])})      
+    print(recommendations)    
+    return {"Overview":overview,"Reviews":list_of_reviews, "img": img_url,"recommendations":recommendations}
 
 def scrape_wikipedia(url):
     response=requests.get(url)
@@ -51,7 +59,6 @@ def search_wikipedia(name):
         return article_title, article_url
     except:
         return None
-    
-    
-# result = search_wikipedia("Avatar The Way of Water(2022)")
-# html = scrape_wikipedia(result[1])
+
+
+get_movie_detail(550)
