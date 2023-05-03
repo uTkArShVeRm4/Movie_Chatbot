@@ -12,7 +12,7 @@ api_key = 'b5ae8f373afd12ae8115950d51b1306d'
 search_results = []
 
 
-movie_query = st.text_input("Search a Movie", placeholder="")
+movie_query = st.text_input("Search a Movie", placeholder="Enter Movie Name")
 url = f'https://api.themoviedb.org/3/search/movie?api_key={api_key}&language=en-US&query={movie_query}&page=1&include_adult=false'
 
 for movie in requests.get(url).json()['results']:
@@ -20,7 +20,7 @@ for movie in requests.get(url).json()['results']:
 
 if search_results:
 	selection = st.selectbox("Select Movie",options = search_results, format_func=lambda x:x[1])
-
+st.write("Click start chat to initiate the conversation")
 if st.button('Start Chat'):
 	# data = get_movie_detail(selection[0])
 	st.session_state.bot=None
