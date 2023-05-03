@@ -10,9 +10,7 @@ from langchain.embeddings import OpenAIEmbeddings
 from langchain.llms import OpenAI
 
 from utils import query_wikipedia,get_movie_detail
-import os
 
-os.environ["OPENAI_API_KEY"] = ""
 
 
 def ask_wiki(queryquestion):
