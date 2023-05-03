@@ -1,117 +1,92 @@
-from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.text_splitter import CharacterTextSplitter
-from langchain.vectorstores import ElasticVectorSearch, Pinecone, Weaviate, FAISS
+from langchain.agents import Tool
+from langchain.memory import ConversationBufferMemory
+from langchain.chat_models import ChatOpenAI
+from langchain.agents import initialize_agent
+from langchain.agents import AgentType
+from langchain.vectorstores import FAISS
 from langchain.chains.question_answering import load_qa_chain
-from langchain.agents import initialize_agent, Tool
-from langchain.agents import AgentType, load_tools
-from langchain.tools import BaseTool
+from langchain.text_splitter import CharacterTextSplitter
+from langchain.embeddings import OpenAIEmbeddings
 from langchain.llms import OpenAI
-from utils import search_wikipedia,scrape_wikipedia
+
+from utils import query_wikipedia,get_movie_detail
 import os
 
-os.environ["OPENAI_API_KEY"] = ""
+os.environ["OPENAI_API_KEY"] = "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"
 
-class MovieChatAgent():
 
-	def __init__(self):
-		self.chatbot = MovieChatBot()
-		self.llm = OpenAI(temperature=0)
-		self.agent = None
+def ask_wiki(queryquestion):
 
-	def preprocess_chatbot(self,data):
-		self.chatbot.preprocess(data)	
+	query,question = queryquestion.split('|')
+	print(query,question)
+	document = query_wikipedia(query)
 
-	def get_from_wikipedia(self,query):
-		return 	self.chatbot.add_info(scrape_wikipedia(search_wikipedia(query)[1]))
 
-	# class FindWikiPediaInfo(BaseTool):
-	# 	name = "Find Wiki Info"
-	# 	description = "Use this tool to get information about anything/anyone from wikepedia and add it to the stored information. Use SendReply tool after to get the final reply to the question. Send the search item as the target"
+	text_splitter = CharacterTextSplitter(        
+		    separator = "\n",
+		    chunk_size = 1000,
+		    chunk_overlap  = 200,
+		    length_function = len
+		)
 
-	# 	def _run(self, query:str) -> str:
-	# 		#Use tool
-	# 		result = search_wikipedia("Avatar The Way of Water(2022)")
-	# 		html = scrape_wikipedia(result[1])
 
-	# 		self.add_info(html)
-	# 		return 'Successfully Added info to database'
+	texts = text_splitter.split_text(document)
 
-	# 	async def _arun(self, query: str) -> str:
-	# 		raise NotImplementedError("Does not support async")	
+	embeddings = OpenAIEmbeddings()
+	docsearch = FAISS.from_texts(texts, embeddings)
+	chain = load_qa_chain(OpenAI(), chain_type="stuff")
+	docs = docsearch.similarity_search(question)
+	return chain.run(input_documents=docs, question=question)
 
-	# class SendReply(BaseTool):
-	# 	name = "Send Reply"
-	# 	description = "Use this tool to send reply to the user question on a given movie. Use FindWikiPediaInfo if you require extra information. It queries the database and calculates the reply. Send the user question as it is in the query"
-		
-	# 	def _run(self, query:str) -> str:
-	# 		return self.chatbot.ask_question(query)
 
-	# 	async def _arun(self, query: str) -> str:
-	# 		raise NotImplementedError("Does not support async")	
+def movie_info(moviequestion):
 
-	def create_agent(self):
-		self.tools = [
-		Tool.from_function(
-			func = self.get_from_wikipedia,
-			name = "Find Wiki Info",
-			description = "Use this tool to get information about anything/anyone from wikepedia and add it to the stored information. Use SendReply tool after to get the final reply to the question. Send the search item as the target"
-			),
-		Tool.from_function(
-			func = self.chatbot.ask_question,
-			name = "Send Reply",
-			description = "Use this tool to answer movie related questions. Use FindWikiPediaInfo if you require extra information. It queries the database and calculates the reply. Send the user question as it is in the query"
-			)
-		]
-		self.agent = initialize_agent(self.tools, self.llm, agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION, verbose = True)     
+	movie,question = moviequestion.split('|')
+
+	data = get_movie_detail(movie)
+
+	document = f"Overview : {data['Overview']}"
+	for i, review in enumerate(bot.data["Reviews"]):
+		document += (f"Review {i+1}: "+ review)
+
+	text_splitter = CharacterTextSplitter(        
+		    separator = "\n",
+		    chunk_size = 1000,
+		    chunk_overlap  = 200,
+		    length_function = len,
+		)
+
+
+	texts = text_splitter.split_text(document)
+
+
+	embeddings = OpenAIEmbeddings()
+	docsearch = FAISS.from_texts(texts, embeddings)
+	chain = load_qa_chain(OpenAI(), chain_type="stuff")
+	docs = docsearch.similarity_search(question)
+	return chain.run(input_documents=docs, question=question)
+
 
 class MovieChatBot():
 
-	def __init__(self):
-		self.data = None
-		self.document = ""
+	def __init__(self,movie,memory):
+		self.movie = movie
+		self.tools = [
+		Tool.from_function(
+			func = ask_wiki,
+			name = 'Query Wikipedia',
+			description = "Useful for when you need to access new information about any movie/person or anyone else from wikipedia. Input to this function should be strictly in the format 'Target| question', where Target is the article from wikipedia to be searched and question is the question asked by user"
+			),
+		Tool.from_function(
+			func = movie_info,
+			name = "Movie user reviews",
+			description = "Useful for when you are asked question about movies and user reviews of the movies. Input to this function should be strictly in the format'movieId| question', where movieId is the tmdbId of the movie and question is the question user asked about the movie."
+			)
+		]
+		self.memory = memory
 
-	def preprocess(self,data):	
-		self.data = data
-		text_splitter = CharacterTextSplitter(        
-		    separator = "\n",
-		    chunk_size = 1000,
-		    chunk_overlap  = 200,
-		    length_function = len,
-		)
-
-		self.document += f"Overview : {self.data['Overview']}"
-
-		for i, review in enumerate(self.data["Reviews"]):
-			self.document += (f"Review {i+1}: "+ review)
-
-
-
-		self.texts = text_splitter.split_text(self.document)
-
-
-		self.embeddings = OpenAIEmbeddings()
-		self.docsearch = FAISS.from_texts(self.texts, self.embeddings)
-		self.chain = load_qa_chain(OpenAI(), chain_type="stuff")
-
-	def add_info(self,data):
-
-		text_splitter = CharacterTextSplitter(        
-		    separator = "\n",
-		    chunk_size = 1000,
-		    chunk_overlap  = 200,
-		    length_function = len,
-		)
-
-		self.document += (data)
-
-		self.texts = text_splitter.split_text(self.document)
-
-		self.embeddings = OpenAIEmbeddings()
-		self.docsearch = FAISS.from_texts(self.texts, self.embeddings)
-		self.chain = load_qa_chain(OpenAI(), chain_type="stuff")
-
+		self.llm=ChatOpenAI(temperature=0)
+		self.agent_chain = initialize_agent(self.tools, self.llm, agent=AgentType.CHAT_CONVERSATIONAL_REACT_DESCRIPTION, verbose=True, memory=memory)
 
 	def ask_question(self,question):
-
-		docs = self.docsearch.similarity_search(question)
-		return self.chain.run(input_documents=docs, question=question)
+		return self.agent_chain.run(question)	
